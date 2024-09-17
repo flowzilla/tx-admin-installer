@@ -1,3 +1,5 @@
+#!/bin/bash
+
 #    Copyright (C) 2021  FlowZilla.
 #
 #    This program is free software; you can redistribute it and/or modify
@@ -13,77 +15,70 @@
 #    with this program; if not, write to the Free Software Foundation, Inc.,
 #    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-#!/bin/bash
+if [[ $EUID -ne 0 ]]; then
+    echo "Please run as root."
+    exit 1
+fi
 
-
-datenbank() {
-  clear
-  bash <(curl -s https://raw.githubusercontent.com/JulianGransee/PHPMyAdminInstaller/main/install.sh)
-
+install_database() {
+    clear
+    echo "Installing PHPMyAdmin and database..."
+    bash <(curl -s https://raw.githubusercontent.com/JulianGransee/PHPMyAdminInstaller/main/install.sh)
+    echo "Database and PHPMyAdmin installed successfully!"
+    sleep 2
 }
 
-
-
-
-tx_options(){
-    
-    echo -e This Script made by FlowZilla. https://github.com/flowzilla PHPMyAdmin install script by Julian G. https://github.com/JulianGransee
-    echo -e  Please select your option:
-    echo -e  [1] TxAdmin Newest Version with Database/PHPMyAdmin
-    echo -e  [2] Only TxAdmin. Newest Version
-    read -r choice
+display_options() {
+    echo -e "\nScript created by V01D: https://github.com/flowzilla"
+    echo -e "PHPMyAdmin install script by Julian G.: https://github.com/JulianGransee\n"
+    echo "Please choose an option:"
+    echo "  [1] Install TxAdmin with Database and PHPMyAdmin"
+    echo "  [2] Install only TxAdmin (Latest Version)"
+    read -p "Enter your choice: " choice
     case $choice in
-        1 ) txoption=1
-
+        1) return 1 ;;
+        2) return 2 ;;
+        *) 
+            echo "Invalid option, please try again."
+            display_options
             ;;
-        2 ) txoption=2
-        
-            ;;   
-        * ) 
-            tx_options
     esac
 }
 
+install_txadmin() {
+    echo "Installing the latest version of TxAdmin..."
+    cd /home/ || exit 1
 
+    latest_version=$(wget -qO- https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/ | grep -m 1 -oP 'fx\.tar\.xz(?=\")')
 
-
-
-txadmin() { 
-  echo -e https://github.com/flowzilla/tx-admin-installer
- 
-  sleep 20
-
-  cd /home/
-
-  string=`wget -qO- https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/ | egrep -m 3 -o "............................................./*\/fx.tar.xz"`
-  
-	newstring=$( echo $string | cut -c113- )
-
-  wget https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/$newstring
-
-  tar -Jxvf fx.tar.xz
-
-  rm -r fx.tar.xz
-
-  clear
-
-  ./run.sh +set serverProfile dev_server +set txAdminPort 40120
-
-}
-
-
- if [ "$EUID" -ne 0 ]; then
-        echo "Please run as root."
-        exit 3
+    if [[ -z $latest_version ]]; then
+        echo "Failed to retrieve the latest version of TxAdmin. Exiting."
+        exit 1
     fi
 
-tx_options
+    wget "https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/$latest_version" -O fx.tar.xz
+    tar -Jxvf fx.tar.xz
+    rm -r fx.tar.xz
 
-case $txoption in 
-        1) datenbank
-           echo -e This is you Database Data. Please save it, you have 20s
-           txadmin
-             ;;
-        2) txadmin
-             ;;
-esac
+    echo "TxAdmin installed successfully. Starting the server..."
+    sleep 2
+    clear
+
+    ./run.sh +set serverProfile dev_server +set txAdminPort 40120
+}
+
+main() {
+    display_options
+    option=$?
+
+    if [[ $option -eq 1 ]]; then
+        install_database
+        echo "Here are your database details. Please save them, you have 20 seconds."
+        sleep 20
+        install_txadmin
+    elif [[ $option -eq 2 ]]; then
+        install_txadmin
+    fi
+}
+
+main
